@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bio Lab Dashboard</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<style>
+:root{
+--bg:#0b1220;--surface:#111827;--border:#1f2937;
+--text:#f8fafc;--muted:#94a3b8;--cyan:#06b6d4;
+--green:#10b981;--yellow:#f59e0b;--red:#ef4444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:var(--bg);color:var(--text);padding:20px}
+.wrap{max-width:1000px;margin:auto}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}}
+.tile-val{font-size:32px;font-weight:bold}
+.tile-unit{color:var(--muted)}
+.badge{padding:6px 10px;border-radius:20px;border:1px solid}
+.online{color:var(--green)}
+.offline{color:var(--red)}
+#danger-banner{display:none;background:#3b1111;border:1px solid var(--red)}
+#danger-banner.show{display:block}
+button{padding:10px 14px;margin:4px;cursor:pointer}
+#alert-list{max-height:220px;overflow:auto}
+.alert{padding:8px;border-left:3px solid var(--yellow);margin:6px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="card">
+<h2>Bio Lab Security Dashboard</h2>
+<div id="mqtt-status" class="badge offline">MQTT OFFLINE</div>
+</div>
+
+<div id="danger-banner" class="card">
+<b>⚠ 危险告警</b><br>
+环境指标超出阈值
+</div>
+
+<div class="grid">
+<div class="card"><div>Temperature</div><div id="temp-value" class="tile-val">--</div><div class="tile-unit">°C</div></div>
+<div class="card"><div>Humidity</div><div id="humi-value" class="tile-val">--</div><div class="tile-unit">%</div></div>
+<div class="card"><div>Light</div><div id="light-value" class="tile-val">--</div><div class="tile-unit">RAW</div></div>
+<div class="card"><div>Distance</div><div id="distance-value" class="tile-val">--</div><div class="tile-unit">cm</div></div>
+</div>
+
+<div class="card">
+<h3>设备控制</h3>
+<button onclick="toggleAC(true)">空调开启</button>
+<button onclick="toggleAC(false)">空调关闭</button>
+<button onclick="toggleLight(true)">灯光开启</button>
+<button onclick="toggleLight(false)">灯光关闭</button>
+</div>
+
+<div class="card">
+<h3>安保决策</h3>
+<div id="door-status">门口正常</div>
+<button onclick="sendDecision('safe')">确认安全</button>
+<button onclick="sendDecision('danger')">标记危险</button>
+</div>
+
+<div class="card">
+<h3>告警记录</h3>
+<div id="alert-list"><div>暂无告警</div></div>
+</div>
+
+</div>
+
+<script>
+const MQTT_HOST="ws://35.156.98.178:8083/mqtt";
+
+const TOPIC_SENSOR="bio_lab/sensor/data";
+const TOPIC_CMD_AC="bio_lab/cmd/ac";
+const TOPIC_CMD_LIGHT="bio_lab/cmd/light";
+const TOPIC_CMD_SAFE="bio_lab/cmd/door_decision";
+
+const client=mqtt.connect(MQTT_HOST,{reconnectPeriod:3000});
+
+client.on("connect",()=>{
+ document.getElementById("mqtt-status").textContent="MQTT ONLINE";
+ document.getElementById("mqtt-status").className="badge online";
+ client.subscribe(TOPIC_SENSOR);
+ addAlert("MQTT连接成功");
+});
+
+client.on("message",(topic,msg)=>{
+ try{
+   const d=JSON.parse(msg.toString());
+   document.getElementById("temp-value").textContent=(d.temperature??"--");
+   document.getElementById("humi-value").textContent=(d.humidity??"--");
+   document.getElementById("light-value").textContent=(d.light_raw??"--");
+   document.getElementById("distance-value").textContent=(d.door_distance??"--");
+
+   if(d.is_danger){
+      document.getElementById("danger-banner").classList.add("show");
+   }else{
+      document.getElementById("danger-banner").classList.remove("show");
+   }
+
+   if(Number(d.door_distance)<=20){
+      document.getElementById("door-status").textContent="有人靠近";
+   }else{
+      document.getElementById("door-status").textContent="门口正常";
+   }
+ }catch(e){console.error(e)}
+});
+
+function addAlert(msg){
+ const box=document.getElementById("alert-list");
+ const div=document.createElement("div");
+ div.className="alert";
+ div.textContent=new Date().toLocaleTimeString()+"  "+msg;
+ box.prepend(div);
+}
+
+function sendDecision(v){
+ client.publish(TOPIC_CMD_SAFE,JSON.stringify({decision:v}));
+ addAlert("发送决策: "+v);
+}
+
+function toggleAC(v){
+ client.publish(TOPIC_CMD_AC,JSON.stringify({cmd:v?"on":"off"}));
+ addAlert("空调 "+(v?"开启":"关闭"));
+}
+
+function toggleLight(v){
+ client.publish(TOPIC_CMD_LIGHT,JSON.stringify({cmd:v?"on":"off"}));
+ addAlert("灯光 "+(v?"开启":"关闭"));
+}
+</script>
+</body>
+</html>
