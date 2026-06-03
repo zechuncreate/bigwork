@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Bio Lab Dashboard</title>
+
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
 <style>
 :root{
 --bg:#0b1220;--surface:#111827;--border:#1f2937;
@@ -29,6 +31,7 @@ button{padding:10px 14px;margin:4px;cursor:pointer}
 .alert{padding:8px;border-left:3px solid var(--yellow);margin:6px 0}
 </style>
 </head>
+
 <body>
 <div class="wrap">
 
@@ -72,66 +75,74 @@ button{padding:10px 14px;margin:4px;cursor:pointer}
 </div>
 
 <script>
-const client = mqtt.connect("ws://35.156.98.178:8083/mqtt");
+// ✅ 这里是唯一 MQTT 连接（已修复）
+const MQTT_HOST = "wss://broker.emqx.io:8084/mqtt";
 
-const TOPIC_SENSOR="bio_lab/sensor/data";
-const TOPIC_CMD_AC="bio_lab/cmd/ac";
-const TOPIC_CMD_LIGHT="bio_lab/cmd/light";
-const TOPIC_CMD_SAFE="bio_lab/cmd/door_decision";
+const TOPIC_SENSOR = "bio_lab/sensor/data";
+const TOPIC_CMD_AC = "bio_lab/cmd/ac";
+const TOPIC_CMD_LIGHT = "bio_lab/cmd/light";
+const TOPIC_CMD_SAFE = "bio_lab/cmd/door_decision";
 
-const client=mqtt.connect(MQTT_HOST,{reconnectPeriod:3000});
-
-client.on("connect",()=>{
- document.getElementById("mqtt-status").textContent="MQTT ONLINE";
- document.getElementById("mqtt-status").className="badge online";
- client.subscribe(TOPIC_SENSOR);
- addAlert("MQTT连接成功");
+const client = mqtt.connect(MQTT_HOST, {
+  reconnectPeriod: 3000
 });
 
-client.on("message",(topic,msg)=>{
- try{
-   const d=JSON.parse(msg.toString());
-   document.getElementById("temp-value").textContent=(d.temperature??"--");
-   document.getElementById("humi-value").textContent=(d.humidity??"--");
-   document.getElementById("light-value").textContent=(d.light_raw??"--");
-   document.getElementById("distance-value").textContent=(d.door_distance??"--");
+// 状态
+client.on("connect", () => {
+  document.getElementById("mqtt-status").textContent = "MQTT ONLINE";
+  document.getElementById("mqtt-status").className = "badge online";
 
-   if(d.is_danger){
+  client.subscribe(TOPIC_SENSOR);
+
+  addAlert("MQTT连接成功");
+});
+
+client.on("message", (topic, msg) => {
+  try {
+    const d = JSON.parse(msg.toString());
+
+    document.getElementById("temp-value").textContent = d.temperature ?? "--";
+    document.getElementById("humi-value").textContent = d.humidity ?? "--";
+    document.getElementById("light-value").textContent = d.light_raw ?? "--";
+    document.getElementById("distance-value").textContent = d.door_distance ?? "--";
+
+    if (d.is_danger) {
       document.getElementById("danger-banner").classList.add("show");
-   }else{
+    } else {
       document.getElementById("danger-banner").classList.remove("show");
-   }
+    }
 
-   if(Number(d.door_distance)<=20){
-      document.getElementById("door-status").textContent="有人靠近";
-   }else{
-      document.getElementById("door-status").textContent="门口正常";
-   }
- }catch(e){console.error(e)}
+    document.getElementById("door-status").textContent =
+      Number(d.door_distance) <= 20 ? "有人靠近" : "门口正常";
+
+  } catch (e) {
+    console.error(e);
+  }
 });
 
-function addAlert(msg){
- const box=document.getElementById("alert-list");
- const div=document.createElement("div");
- div.className="alert";
- div.textContent=new Date().toLocaleTimeString()+"  "+msg;
- box.prepend(div);
+function addAlert(msg) {
+  const box = document.getElementById("alert-list");
+  const div = document.createElement("div");
+  div.className = "alert";
+  div.textContent = new Date().toLocaleTimeString() + "  " + msg;
+  box.prepend(div);
 }
 
-function sendDecision(v){
- client.publish(TOPIC_CMD_SAFE,JSON.stringify({decision:v}));
- addAlert("发送决策: "+v);
+function sendDecision(v) {
+  client.publish(TOPIC_CMD_SAFE, JSON.stringify({ decision: v }));
+  addAlert("发送决策: " + v);
 }
 
-function toggleAC(v){
- client.publish(TOPIC_CMD_AC,JSON.stringify({cmd:v?"on":"off"}));
- addAlert("空调 "+(v?"开启":"关闭"));
+function toggleAC(v) {
+  client.publish(TOPIC_CMD_AC, JSON.stringify({ cmd: v ? "on" : "off" }));
+  addAlert("空调 " + (v ? "开启" : "关闭"));
 }
 
-function toggleLight(v){
- client.publish(TOPIC_CMD_LIGHT,JSON.stringify({cmd:v?"on":"off"}));
- addAlert("灯光 "+(v?"开启":"关闭"));
+function toggleLight(v) {
+  client.publish(TOPIC_CMD_LIGHT, JSON.stringify({ cmd: v ? "on" : "off" }));
+  addAlert("灯光 " + (v ? "开启" : "关闭"));
 }
 </script>
+
 </body>
 </html>
