@@ -10,15 +10,14 @@
 <style>
 :root{
 --bg:#0b1220;--surface:#111827;--border:#1f2937;
---text:#f8fafc;--muted:#94a3b8;--cyan:#06b6d4;
---green:#10b981;--yellow:#f59e0b;--red:#ef4444;
+--text:#f8fafc;--muted:#94a3b8;--green:#10b981;
+--yellow:#f59e0b;--red:#ef4444;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;background:var(--bg);color:var(--text);padding:20px}
+body{font-family:Arial;background:var(--bg);color:var(--text);padding:20px}
 .wrap{max-width:1000px;margin:auto}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-@media(max-width:700px){.grid{grid-template-columns:repeat(2,1fr)}}
 .tile-val{font-size:32px;font-weight:bold}
 .tile-unit{color:var(--muted)}
 .badge{padding:6px 10px;border-radius:20px;border:1px solid}
@@ -42,7 +41,7 @@ button{padding:10px 14px;margin:4px;cursor:pointer}
 
 <div id="danger-banner" class="card">
 <b>⚠ 危险告警</b><br>
-环境指标超出阈值
+环境异常
 </div>
 
 <div class="grid">
@@ -54,94 +53,93 @@ button{padding:10px 14px;margin:4px;cursor:pointer}
 
 <div class="card">
 <h3>设备控制</h3>
-<button onclick="toggleAC(true)">空调开启</button>
-<button onclick="toggleAC(false)">空调关闭</button>
-<button onclick="toggleLight(true)">灯光开启</button>
-<button onclick="toggleLight(false)">灯光关闭</button>
-</div>
-
-<div class="card">
-<h3>安保决策</h3>
-<div id="door-status">门口正常</div>
-<button onclick="sendDecision('safe')">确认安全</button>
-<button onclick="sendDecision('danger')">标记危险</button>
+<button onclick="toggleAC(true)">空调开</button>
+<button onclick="toggleAC(false)">空调关</button>
+<button onclick="toggleLight(true)">灯开</button>
+<button onclick="toggleLight(false)">灯关</button>
 </div>
 
 <div class="card">
 <h3>告警记录</h3>
-<div id="alert-list"><div>暂无告警</div></div>
+<div id="alert-list"></div>
 </div>
 
 </div>
 
 <script>
-// ✅ 这里是唯一 MQTT 连接（已修复）
-const MQTT_HOST = "wss://broker.emqx.io:8084/mqtt";
+// =========================
+// MQTT 双通道（稳定方案）
+// =========================
+const MQTT_OPTIONS = [
+  "wss://broker.emqx.io:8084/mqtt",
+  "ws://broker.emqx.io:8083/mqtt"
+];
 
-const TOPIC_SENSOR = "bio_lab/sensor/data";
-const TOPIC_CMD_AC = "bio_lab/cmd/ac";
-const TOPIC_CMD_LIGHT = "bio_lab/cmd/light";
-const TOPIC_CMD_SAFE = "bio_lab/cmd/door_decision";
+let client;
 
-const client = mqtt.connect(MQTT_HOST, {
-  reconnectPeriod: 3000
-});
+function connect(index = 0) {
+  const url = MQTT_OPTIONS[index];
 
-// 状态
-client.on("connect", () => {
-  document.getElementById("mqtt-status").textContent = "MQTT ONLINE";
-  document.getElementById("mqtt-status").className = "badge online";
+  client = mqtt.connect(url, { reconnectPeriod: 2000 });
 
-  client.subscribe(TOPIC_SENSOR);
+  client.on("connect", () => {
+    setStatus(true);
+    addAlert("已连接: " + url);
+    client.subscribe("bio_lab/sensor/data");
+  });
 
-  addAlert("MQTT连接成功");
-});
-
-client.on("message", (topic, msg) => {
-  try {
-    const d = JSON.parse(msg.toString());
-
-    document.getElementById("temp-value").textContent = d.temperature ?? "--";
-    document.getElementById("humi-value").textContent = d.humidity ?? "--";
-    document.getElementById("light-value").textContent = d.light_raw ?? "--";
-    document.getElementById("distance-value").textContent = d.door_distance ?? "--";
-
-    if (d.is_danger) {
-      document.getElementById("danger-banner").classList.add("show");
+  client.on("error", () => {
+    client.end();
+    if (index < MQTT_OPTIONS.length - 1) {
+      addAlert("切换备用服务器...");
+      connect(index + 1);
     } else {
-      document.getElementById("danger-banner").classList.remove("show");
+      setStatus(false);
     }
+  });
 
-    document.getElementById("door-status").textContent =
-      Number(d.door_distance) <= 20 ? "有人靠近" : "门口正常";
+  client.on("message", (topic, msg) => {
+    try {
+      const d = JSON.parse(msg.toString());
 
-  } catch (e) {
-    console.error(e);
-  }
-});
+      document.getElementById("temp-value").textContent = d.temperature ?? "--";
+      document.getElementById("humi-value").textContent = d.humidity ?? "--";
+      document.getElementById("light-value").textContent = d.light_raw ?? "--";
+      document.getElementById("distance-value").textContent = d.door_distance ?? "--";
+
+      document.getElementById("danger-banner").classList.toggle("show", d.is_danger);
+
+    } catch (e) {}
+  });
+}
+
+function setStatus(ok) {
+  const el = document.getElementById("mqtt-status");
+  el.textContent = ok ? "MQTT ONLINE" : "MQTT OFFLINE";
+  el.className = ok ? "badge online" : "badge offline";
+}
 
 function addAlert(msg) {
   const box = document.getElementById("alert-list");
   const div = document.createElement("div");
   div.className = "alert";
-  div.textContent = new Date().toLocaleTimeString() + "  " + msg;
+  div.textContent = new Date().toLocaleTimeString() + " " + msg;
   box.prepend(div);
 }
 
-function sendDecision(v) {
-  client.publish(TOPIC_CMD_SAFE, JSON.stringify({ decision: v }));
-  addAlert("发送决策: " + v);
+// 控制
+function toggleAC(v){
+  client.publish("bio_lab/cmd/ac", JSON.stringify({cmd:v?"on":"off"}));
+  addAlert("空调 " + (v?"开":"关"));
 }
 
-function toggleAC(v) {
-  client.publish(TOPIC_CMD_AC, JSON.stringify({ cmd: v ? "on" : "off" }));
-  addAlert("空调 " + (v ? "开启" : "关闭"));
+function toggleLight(v){
+  client.publish("bio_lab/cmd/light", JSON.stringify({cmd:v?"on":"off"}));
+  addAlert("灯 " + (v?"开":"关"));
 }
 
-function toggleLight(v) {
-  client.publish(TOPIC_CMD_LIGHT, JSON.stringify({ cmd: v ? "on" : "off" }));
-  addAlert("灯光 " + (v ? "开启" : "关闭"));
-}
+// start
+connect();
 </script>
 
 </body>
