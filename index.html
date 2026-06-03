@@ -72,7 +72,7 @@ button{padding:10px 14px;margin:4px;cursor:pointer}
 </div>
 
 <script>
-const MQTT_HOST="wss://35.156.98.178:8084/mqtt";
+const client = mqtt.connect("ws://35.156.98.178:8083/mqtt");
 
 const TOPIC_SENSOR="bio_lab/sensor/data";
 const TOPIC_CMD_AC="bio_lab/cmd/ac";
