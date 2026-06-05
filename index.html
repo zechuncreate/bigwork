@@ -8,34 +8,27 @@
 <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
 <style>
-:root{
-  --bg:#0b1220;--surface:#111827;--border:#1f2937;
-  --text:#f8fafc;--muted:#94a3b8;--green:#10b981;
-  --yellow:#f59e0b;--red:#ef4444;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial;background:var(--bg);color:var(--text);padding:20px}
-.wrap{max-width:1000px;margin:auto}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.tile-val{font-size:32px;font-weight:bold}
-.tile-unit{color:var(--muted)}
-.badge{padding:6px 10px;border-radius:20px;border:1px solid}
-.online{color:var(--green)}
-.offline{color:var(--red)}
-#danger-banner{display:none;background:#3b1111;border:1px solid var(--red);padding:12px;margin-bottom:14px}
-#danger-banner.show{display:block}
-button{padding:10px 14px;margin:4px;cursor:pointer}
-#alert-list{max-height:220px;overflow:auto}
-.alert{padding:8px;border-left:3px solid var(--yellow);margin:6px 0}
-
-/* LED 状态提示 */
-.led-row{display:flex;align-items:center;gap:12px;margin-top:12px}
-.led{width:20px;height:20px;border-radius:50%;background:#333;display:inline-block;vertical-align:middle}
-.led.red.active{background:var(--red)}
-.led.yellow.active{background:var(--yellow)}
-.led.green.active{background:var(--green)}
-.led-label{color:var(--text);font-size:14px}
+  :root{
+    --bg:#0b1220;--surface:#111827;--border:#1f2937;
+    --text:#f8fafc;--muted:#94a3b8;--green:#10b981;
+    --yellow:#f59e0b;--red:#ef4444;--blue:#3b82f6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial;background:var(--bg);color:var(--text);padding:20px}
+  .wrap{max-width:1000px;margin:auto}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .tile-val{font-size:32px;font-weight:bold}
+  .tile-unit{color:var(--muted)}
+  .badge{padding:6px 10px;border-radius:20px;border:1px solid}
+  .online{color:var(--green)}
+  .offline{color:var(--red)}
+  #danger-banner{display:none;background:#3b1111;border:1px solid var(--red);padding:12px;margin-bottom:14px}
+  #danger-banner.show{display:block}
+  button{padding:10px 14px;margin:4px;cursor:pointer;border-radius:6px;border:none;background:var(--border);color:white}
+  button:hover{background:#374151}
+  .status-tag{padding:2px 8px;border-radius:4px;font-size:12px;background:#374151}
+  .status-on{background:var(--green);color:white}
 </style>
 </head>
 
@@ -45,165 +38,78 @@ button{padding:10px 14px;margin:4px;cursor:pointer}
   <div class="card">
     <h2>Bio Lab Security Dashboard</h2>
     <div id="mqtt-status" class="badge offline">MQTT OFFLINE</div>
-
-    <div class="led-row">
-      <span class="led red" id="led-red"></span>
-      <span class="led-label">红灯: 温度湿度过高</span>
-    </div>
-    <div class="led-row">
-      <span class="led yellow" id="led-yellow"></span>
-      <span class="led-label">黄灯: 距离过近</span>
-    </div>
-    <div class="led-row">
-      <span class="led green" id="led-green"></span>
-      <span class="led-label">绿灯: 正常运行</span>
+    
+    <div style="display:flex;gap:15px;margin-top:15px;">
+        <span><span class="led red" id="led-red" style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#333"></span> 红灯(环境危险)</span>
+        <span><span class="led yellow" id="led-yellow" style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#333"></span> 黄灯(门禁告警)</span>
+        <span><span class="led green" id="led-green" style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#333"></span> 绿灯(运行正常)</span>
     </div>
   </div>
 
-  <div id="danger-banner" class="card">
-    <b>⚠ 危险告警</b><br>
-    环境异常
-  </div>
+  <div id="danger-banner" class="card"><b>⚠ 环境告警：系统已自动开启空调处理</b></div>
 
   <div class="grid">
-    <div class="card">
-      <div>Temperature</div>
-      <div id="temp-value" class="tile-val">--</div>
-      <div class="tile-unit">°C</div>
-    </div>
-    <div class="card">
-      <div>Humidity</div>
-      <div id="humi-value" class="tile-val">--</div>
-      <div class="tile-unit">%</div>
-    </div>
-    <div class="card">
-      <div>Light</div>
-      <div id="light-value" class="tile-val">--</div>
-      <div class="tile-unit">RAW</div>
-    </div>
-    <div class="card">
-      <div>Distance</div>
-      <div id="distance-value" class="tile-val">--</div>
-      <div class="tile-unit">cm</div>
-    </div>
+    <div class="card"><div>Temp</div><div id="temp-value" class="tile-val">--</div>°C</div>
+    <div class="card"><div>Humi</div><div id="humi-value" class="tile-val">--</div>%</div>
+    <div class="card"><div>Light</div><div id="light-value" class="tile-val">--</div>RAW</div>
+    <div class="card"><div>Dist</div><div id="distance-value" class="tile-val">--</div>cm</div>
   </div>
 
   <div class="card">
     <h3>空调控制</h3>
     <button onclick="toggleAC(true)">空调开</button>
     <button onclick="toggleAC(false)">空调关</button>
-    <input type="number" id="ac-temp" value="26" style="width:60px">
-    <button onclick="setACTemp()">设定温度</button>
-    <div>当前状态: <span id="ac-status">已关闭</span>, 温度: <span id="ac-temp-show">26°C</span></div>
+    <div style="margin-top:10px;">状态: <span id="ac-status" class="status-tag">OFF</span></div>
   </div>
 
   <div class="card">
     <h3>照明控制</h3>
     <button onclick="toggleLight(true)">灯开</button>
     <button onclick="toggleLight(false)">灯关</button>
-    <div>当前状态: <span id="light-status">关闭</span></div>
+    <div style="margin-top:10px;">状态: <span id="light-status" class="status-tag">OFF</span></div>
   </div>
-
-  <div class="card">
-    <h3>告警记录</h3>
-    <div id="alert-list"></div>
-  </div>
-
 </div>
 
 <script>
-// =========================
-// MQTT 双通道（稳定方案）
-// =========================
-const MQTT_OPTIONS = [
-  "wss://broker.emqx.io:8084/mqtt",
-  "ws://broker.emqx.io:8083/mqtt"
-];
+const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt");
 
-let client;
-let acOn = false, lightOn = false;
-let acTemp = 26;
+client.on("connect", () => {
+  document.getElementById("mqtt-status").textContent = "MQTT ONLINE";
+  document.getElementById("mqtt-status").className = "badge online";
+  client.subscribe("bio_lab/sensor/data");
+});
 
-function connect(index = 0) {
-  const url = MQTT_OPTIONS[index];
+client.on("message", (topic, msg) => {
+  try {
+    const d = JSON.parse(msg.toString());
+    
+    // 更新数值
+    document.getElementById("temp-value").textContent = d.temperature?.toFixed(1) ?? "--";
+    document.getElementById("humi-value").textContent = d.humidity?.toFixed(0) ?? "--";
+    document.getElementById("light-value").textContent = d.light_raw ?? "--";
+    document.getElementById("distance-value").textContent = d.door_distance?.toFixed(0) ?? "--";
 
-  client = mqtt.connect(url, { reconnectPeriod: 2000 });
+    // 更新 LED 灯效
+    document.getElementById("led-red").style.background = d.is_danger ? "var(--red)" : "#333";
+    document.getElementById("led-yellow").style.background = d.door_alert ? "var(--yellow)" : "#333";
+    document.getElementById("led-green").style.background = (!d.is_danger && !d.door_alert) ? "var(--green)" : "#333";
+    
+    document.getElementById("danger-banner").classList.toggle("show", d.is_danger);
 
-  client.on("connect", () => {
-    setStatus(true);
-    addAlert("已连接: " + url);
-    client.subscribe("bio_lab/sensor/data");
-  });
+    // [新增] 更新空调与灯光 UI 状态
+    const acEl = document.getElementById("ac-status");
+    acEl.textContent = d.ac_status ? "ON" : "OFF";
+    acEl.className = "status-tag " + (d.ac_status ? "status-on" : "");
 
-  client.on("error", () => {
-    client.end();
-    if (index < MQTT_OPTIONS.length - 1) {
-      addAlert("切换备用服务器...");
-      connect(index + 1);
-    } else {
-      setStatus(false);
-    }
-  });
+    const lightEl = document.getElementById("light-status");
+    lightEl.textContent = d.light_status ? "ON" : "OFF";
+    lightEl.className = "status-tag " + (d.light_status ? "status-on" : "");
 
-  client.on("message", (topic, msg) => {
-    try {
-      const d = JSON.parse(msg.toString());
+  } catch (e) { console.error(e); }
+});
 
-      document.getElementById("temp-value").textContent = d.temperature ?? "--";
-      document.getElementById("humi-value").textContent = d.humidity ?? "--";
-      document.getElementById("light-value").textContent = d.light_raw ?? "--";
-      document.getElementById("distance-value").textContent = d.door_distance ?? "--";
-
-      // LED 状态
-      document.getElementById("led-red").classList.toggle("active", d.is_danger);
-      document.getElementById("led-yellow").classList.toggle("active", d.door_alert);
-      document.getElementById("led-green").classList.toggle("active", !d.is_danger && !d.door_alert);
-
-      document.getElementById("danger-banner").classList.toggle("show", d.is_danger);
-
-    } catch (e) {}
-  });
-}
-
-function setStatus(ok) {
-  const el = document.getElementById("mqtt-status");
-  el.textContent = ok ? "MQTT ONLINE" : "MQTT OFFLINE";
-  el.className = ok ? "badge online" : "badge offline";
-}
-
-function addAlert(msg) {
-  const box = document.getElementById("alert-list");
-  const div = document.createElement("div");
-  div.className = "alert";
-  div.textContent = new Date().toLocaleTimeString() + " " + msg;
-  box.prepend(div);
-}
-
-// 空调控制（虚拟）
-function toggleAC(v){
-  acOn = v;
-  client.publish("bio_lab/cmd/ac", JSON.stringify({cmd:v?"on":"off"}));
-  document.getElementById("ac-status").textContent = v ? "运行中" : "已关闭";
-  addAlert("空调 " + (v?"开":"关"));
-}
-
-function setACTemp(){
-  acTemp = Number(document.getElementById("ac-temp").value);
-  document.getElementById("ac-temp-show").textContent = acTemp + "°C";
-  addAlert("空调设定温度 " + acTemp + "°C");
-}
-
-// 灯光控制（虚拟）
-function toggleLight(v){
-  lightOn = v;
-  client.publish("bio_lab/cmd/light", JSON.stringify({cmd:v?"on":"off"}));
-  document.getElementById("light-status").textContent = v ? "开启" : "关闭";
-  addAlert("灯光 " + (v?"开":"关"));
-}
-
-// 启动
-connect();
+function toggleAC(v){ client.publish("bio_lab/cmd/ac", JSON.stringify({cmd:v?"on":"off"})); }
+function toggleLight(v){ client.publish("bio_lab/cmd/light", JSON.stringify({cmd:v?"on":"off"})); }
 </script>
-
 </body>
 </html>
